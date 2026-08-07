@@ -76,12 +76,12 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
   # -------------------------------------------------------------
-  # STAGE 4: Container Build, Lint & Vulnerability Scan
+  # STAGE 4: Container Build, Lint & Vulnerability Scan & Push
   # -------------------------------------------------------------
   container-security:
-    name: Docker Build & Image Scan
+    name: Docker Build, Scan & Push
     runs-on: ubuntu-latest
-    needs: [lint-and-test, secret-scan]
+    needs: [lint-and-test, secret-scan, security-sast-sca]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -107,3 +107,24 @@ jobs:
           exit-code: '0' # Đổi thành '1' nếu muốn block pipeline khi phát hiện CVE HIGH/CRITICAL
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+
+      # 1. Đăng nhập vào Docker Hub (Chỉ chạy khi push vào main/master)
+      - name: Log in to Docker Hub
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 2. Build & Push Image lên Docker Hub
+      - name: Build and Push Docker Image
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/devsecops-app:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/devsecops-app:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
