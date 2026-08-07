@@ -108,6 +108,20 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
 
+      # 0. Kiểm tra Secret
+      - name: Check Secrets Existence
+        run: |
+          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+            echo "❌ DOCKERHUB_USERNAME dang bi RONG"
+          else
+            echo "✅ DOCKERHUB_USERNAME da duoc thiet lap"
+          fi
+          if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "❌ DOCKERHUB_TOKEN dang bi RONG"
+          else
+            echo "✅ DOCKERHUB_TOKEN da duoc thiet lap"
+          fi
+
       # 1. Đăng nhập vào Docker Hub (Chỉ chạy khi push vào main/master)
       - name: Log in to Docker Hub
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
