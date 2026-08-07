@@ -1,0 +1,16 @@
+.git
+.github
+.gitignore
+.dockerignore
+.env
+.env.*
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+tests
+roadmap.md
+README.md
+SECURITY.md

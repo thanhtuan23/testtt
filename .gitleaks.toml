@@ -1,0 +1,12 @@
+title = "Gitleaks Baseline Configuration"
+
+[allowlist]
+description = "Global allowlist for false positives or harmless tokens"
+paths = [
+  '''gitleaks\.toml''',
+  '''tests/.*'''
+]
+regexes = [
+  '''example\.com''',
+  '''dummy_token_for_test'''
+]

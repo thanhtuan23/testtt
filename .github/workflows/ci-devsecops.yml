@@ -1,0 +1,109 @@
+name: DevSecOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  # -------------------------------------------------------------
+  # STAGE 1: Code Linting & Unit Testing
+  # -------------------------------------------------------------
+  lint-and-test:
+    name: 🧪 Lint & Unit Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest flake8
+
+      - name: Code Linting (Flake8)
+        run: |
+          # Dừng build nếu có syntax errors hoặc undefined names
+          flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Cảnh báo code style
+          flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run Unit Tests
+        run: |
+          pytest tests/ -v
+
+  # -------------------------------------------------------------
+  # STAGE 2: Secret Scanning (Gitleaks)
+  # -------------------------------------------------------------
+  secret-scan:
+    name: Secret Scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # -------------------------------------------------------------
+  # STAGE 3: SAST & Dependency Vulnerability Scan (Trivy Repository Scan)
+  # -------------------------------------------------------------
+  security-sast-sca:
+    name: SAST & SCA Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner (FS Mode)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+
+  # -------------------------------------------------------------
+  # STAGE 4: Container Build, Lint & Vulnerability Scan
+  # -------------------------------------------------------------
+  container-security:
+    name: Docker Build & Image Scan
+    runs-on: ubuntu-latest
+    needs: [lint-and-test, secret-scan]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfile (Hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          ignore: DL3008,DL3013 # Ignore minor pinning warnings if needed
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image (Local Test)
+        run: |
+          docker build -t app:test .
+
+      - name: Run Trivy Image Security Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'app:test'
+          format: 'table'
+          exit-code: '0' # Đổi thành '1' nếu muốn block pipeline khi phát hiện CVE HIGH/CRITICAL
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
